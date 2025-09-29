@@ -8,9 +8,26 @@
 
 import Foundation
 
+enum AppleAPIEnvironment: String, CaseIterable, Identifiable {
+    case business = "https://api-business.apple.com"
+    case school = "https://api-school.apple.com"
+    var id: String { rawValue }
+    var displayName: String {
+        switch self {
+        case .business: return "Business"
+        case .school: return "School"
+        }
+    }
+}
+
 class APIService {
     private var accessToken: String?
     private var tokenExpiry: Date?
+    private let baseURL: String
+    
+    init(environment: AppleAPIEnvironment) {
+        self.baseURL = environment.rawValue
+    }
     
     // Get access token
     func getAccessToken(clientAssertion: String, clientId: String) async throws -> String {
@@ -52,7 +69,7 @@ class APIService {
     
     // Check activity status
     func checkActivityStatus(activityId: String, accessToken: String) async throws -> ActivityStatusResponse {
-        let url = URL(string: "https://api-business.apple.com/v1/orgDeviceActivities/\(activityId)")!
+        let url = URL(string: "\(baseURL)/v1/orgDeviceActivities/\(activityId)")!
         var request = URLRequest(url: url)
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         
@@ -63,7 +80,7 @@ class APIService {
     // Fetch devices
     func fetchDevices(accessToken: String) async throws -> [OrgDevice] {
         var allDevices: [OrgDevice] = []
-        var nextURL: String? = "https://api-business.apple.com/v1/orgDevices"
+        var nextURL: String? = "\(baseURL)/v1/orgDevices"
         
         while let urlString = nextURL {
             guard let url = URL(string: urlString) else { break }
@@ -88,7 +105,13 @@ class APIService {
             let deviceResponse = try JSONDecoder().decode(DevicesResponse.self, from: data)
             
             allDevices.append(contentsOf: deviceResponse.data)
-            nextURL = deviceResponse.links?.next
+            if let next = deviceResponse.links?.next, next.hasPrefix("http") {
+                nextURL = next
+            } else if let next = deviceResponse.links?.next {
+                nextURL = "\(baseURL)\(next)"
+            } else {
+                nextURL = nil
+            }
         }
         
         return allDevices
@@ -96,7 +119,7 @@ class APIService {
     
     // Get device by ID
     func getDevice(id: String, accessToken: String) async throws -> OrgDevice {
-        let url = URL(string: "https://api-business.apple.com/v1/orgDevices/\(id)")!
+        let url = URL(string: "\(baseURL)/v1/orgDevices/\(id)")!
         var request = URLRequest(url: url)
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         
@@ -107,7 +130,7 @@ class APIService {
     
     // Fetch MDM servers
     func fetchMDMServers(accessToken: String) async throws -> [MDMServer] {
-        let url = URL(string: "https://api-business.apple.com/v1/mdmServers")!
+        let url = URL(string: "\(baseURL)/v1/mdmServers")!
         var request = URLRequest(url: url)
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -127,7 +150,7 @@ class APIService {
     
     // Get devices for MDM server
     func getDevicesForMDM(mdmId: String, accessToken: String) async throws -> [String] {
-        let url = URL(string: "https://api-business.apple.com/v1/mdmServers/\(mdmId)/relationships/devices")!
+        let url = URL(string: "\(baseURL)/v1/mdmServers/\(mdmId)/relationships/devices")!
         var request = URLRequest(url: url)
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         
@@ -138,7 +161,7 @@ class APIService {
     
     // Assign/unassign devices
     func assignDevices(deviceIds: [String], mdmId: String?, accessToken: String) async throws -> String {
-        let url = URL(string: "https://api-business.apple.com/v1/orgDeviceActivities")!
+        let url = URL(string: "\(baseURL)/v1/orgDeviceActivities")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
