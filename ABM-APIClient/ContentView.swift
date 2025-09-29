@@ -36,6 +36,11 @@ struct ContentView: View {
                 }
                 .pickerStyle(SegmentedPickerStyle())
                 .padding([.top, .horizontal])
+                // Add target URL label below picker
+                Text("Target URL: \(viewModel.currentBaseURL)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.bottom, 4)
                 
                 // Sidebar - Credentials
                 VStack(spacing: 0) {
@@ -123,7 +128,7 @@ struct ContentView: View {
                             }) {
                                 HStack {
                                     Image(systemName: "arrow.triangle.2.circlepath")
-                                    Text("Connect to ABM")
+                                    Text(viewModel.connectButtonLabel)
                                     Spacer()
                                 }
                             }
@@ -177,59 +182,57 @@ struct ContentView: View {
                 }
                 .frame(minWidth: 320, idealWidth: 350)
                 .background(Color(NSColor.controlBackgroundColor))
-            } detail: {
-                // Main content with tabs
-                TabView(selection: $selectedTab) {
-                    // Devices Tab
-                    DevicesView(viewModel: viewModel)
-                        .tabItem {
-                            Label("Devices", systemImage: "desktopcomputer")
-                        }
-                        .tag(0)
-                    
-                    // MDM Servers Tab
-                    MDMServersView(viewModel: viewModel)
-                        .tabItem {
-                            Label("MDM Servers", systemImage: "server.rack")
-                        }
-                        .tag(1)
-                    
-                    // Device Assignment Tab
-                    DeviceAssignmentView(viewModel: viewModel)
-                        .tabItem {
-                            Label("Assign Devices", systemImage: "arrow.right.square")
-                        }
-                        .tag(2)
-                    
-                    // Activity Status Tab
-                    ActivityStatusView(viewModel: viewModel)
-                        .tabItem {
-                            Label("Activity Status", systemImage: "clock.arrow.circlepath")
-                        }
-                        .tag(3)
-                }
-                .frame(minWidth: 800, maxWidth: .infinity, minHeight: 600, maxHeight: .infinity)
             }
-            .onAppear {
-                viewModel.loadCredentials()
-            }
-            .fileImporter(
-                isPresented: $showingPrivateKeyInput,
-                allowedContentTypes: [.plainText, .item],
-                allowsMultipleSelection: false
-            ) { result in
-                switch result {
-                case .success(let files):
-                    if let file = files.first {
-                        handlePrivateKeyFile(url: file)
+        } detail: {
+            // Main content with tabs
+            TabView(selection: $selectedTab) {
+                // Devices Tab
+                DevicesView(viewModel: viewModel)
+                    .tabItem {
+                        Label("Devices", systemImage: "desktopcomputer")
                     }
-                case .failure(let error):
-                    viewModel.errorMessage = "Failed to load key: \(error.localizedDescription)"
+                    .tag(0)
+                
+                // MDM Servers Tab
+                MDMServersView(viewModel: viewModel)
+                    .tabItem {
+                        Label("MDM Servers", systemImage: "server.rack")
+                    }
+                    .tag(1)
+                
+                // Device Assignment Tab
+                DeviceAssignmentView(viewModel: viewModel)
+                    .tabItem {
+                        Label("Assign Devices", systemImage: "arrow.right.square")
+                    }
+                    .tag(2)
+                
+                // Activity Status Tab
+                ActivityStatusView(viewModel: viewModel)
+                    .tabItem {
+                        Label("Activity Status", systemImage: "clock.arrow.circlepath")
+                    }
+                    .tag(3)
+            }
+            .frame(minWidth: 800, maxWidth: .infinity, minHeight: 600, maxHeight: .infinity)
+        }
+        .onAppear {
+            viewModel.loadCredentials()
+        }
+        .fileImporter(
+            isPresented: $showingPrivateKeyInput,
+            allowedContentTypes: [.plainText, .item],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .success(let files):
+                if let file = files.first {
+                    handlePrivateKeyFile(url: file)
                 }
+            case .failure(let error):
+                viewModel.errorMessage = "Failed to load key: \(error.localizedDescription)"
             }
         }
-        
-        // Rename and move function outside body
     }
     
     // Devices View

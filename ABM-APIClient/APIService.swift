@@ -23,7 +23,7 @@ enum AppleAPIEnvironment: String, CaseIterable, Identifiable {
 class APIService {
     private var accessToken: String?
     private var tokenExpiry: Date?
-    private let baseURL: String
+    let baseURL: String
     
     init(environment: AppleAPIEnvironment) {
         self.baseURL = environment.rawValue

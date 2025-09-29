@@ -97,4 +97,12 @@ class ABMViewModel: ObservableObject {
         clientId = UserDefaults.standard.string(forKey: "clientId") ?? ""
         keyId = UserDefaults.standard.string(forKey: "keyId") ?? ""
     }
+    
+    var currentBaseURL: String {
+        apiService.baseURL
+    }
+    
+    var connectButtonLabel: String {
+        environment == .business ? "Connect to ABM" : "Connect to ASM"
+    }
 }
