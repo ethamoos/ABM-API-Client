@@ -22,9 +22,18 @@ class ABMViewModel: ObservableObject {
     @Published var clientId = ""
     @Published var keyId = ""
     @Published var privateKey = ""
+    @Published var environment: AppleAPIEnvironment = .business {
+        didSet {
+            apiService = APIService(environment: environment)
+        }
+    }
     
-    internal let apiService = APIService()
+    internal var apiService: APIService
     internal var clientAssertion: String?
+    
+    init() {
+        self.apiService = APIService(environment: .business)
+    }
     
     // Generate JWT
     func generateJWT() {
