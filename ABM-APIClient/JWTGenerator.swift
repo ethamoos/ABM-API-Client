@@ -27,6 +27,8 @@ class JWTGenerator {
         {"sub":"\(credentials.clientId)","aud":"https://account.apple.com/auth/oauth2/v2/token","iat":\(now),"exp":\(exp),"jti":"\(UUID().uuidString)","iss":"\(credentials.clientId)"}
         """
         
+        print("JWT Payload :\n\(payload)")
+        
         // Base64URL encode
         let headerBase64 = header.data(using: .utf8)!.base64URLEncoded()
         let payloadBase64 = payload.data(using: .utf8)!.base64URLEncoded()
