@@ -66,6 +66,8 @@ class ABMViewModel: ObservableObject {
             return
         }
         
+        print("Assertion is: \(assertion)")
+        
         isLoading = true
         errorMessage = nil
         statusMessage = nil
