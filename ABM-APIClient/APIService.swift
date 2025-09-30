@@ -24,9 +24,11 @@ class APIService {
     private var accessToken: String?
     private var tokenExpiry: Date?
     let baseURL: String
+    let environment: AppleAPIEnvironment
     
     init(environment: AppleAPIEnvironment) {
         self.baseURL = environment.rawValue
+        self.environment = environment
     }
     
     // Get access token
@@ -41,13 +43,15 @@ class APIService {
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         
+        // Set scope based on environment
+        let scope = environment == .business ? "business.api" : "school.api"
         // Create body
         let bodyParams = [
             "grant_type": "client_credentials",
             "client_id": clientId,
             "client_assertion_type": "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
             "client_assertion": clientAssertion,
-            "scope": "business.api"
+            "scope": scope
         ]
         
         let bodyString = bodyParams

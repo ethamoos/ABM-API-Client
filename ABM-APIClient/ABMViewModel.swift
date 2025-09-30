@@ -61,6 +61,7 @@ class ABMViewModel: ObservableObject {
     
     // Fetch devices
     func fetchDevices() {
+        print("Running fetchDevices")
         guard let assertion = clientAssertion else {
             errorMessage = "Generate JWT first"
             return

@@ -10,6 +10,7 @@ import Foundation
 extension ABMViewModel {
     // Fetch MDM servers
     func fetchMDMServers() {
+        print("Running fetchMDMServers extension")
         guard let assertion = clientAssertion else {
             errorMessage = "Generate JWT first"
             return
@@ -25,7 +26,20 @@ extension ABMViewModel {
                 mdmServers = try await apiService.fetchMDMServers(accessToken: token)
                 statusMessage = "Fetched \(mdmServers.count) MDM servers"
             } catch {
-                errorMessage = "Error: \(error.localizedDescription)"
+                // Enhanced error handling for debugging
+                print("fetchMDMServers error: \(error)")
+                if let urlError = error as? URLError {
+                    errorMessage = "Network error: \(urlError.localizedDescription)"
+                } else if let decodingError = error as? DecodingError {
+                    errorMessage = "Decoding error: \(decodingError.localizedDescription)"
+                } else if let nsError = error as? NSError {
+                    // Try to extract status code and response from NSError
+                    let statusCode = nsError.code
+                    let response = nsError.userInfo[NSLocalizedDescriptionKey] as? String ?? "No response body"
+                    errorMessage = "API error (status \(statusCode)): \(response)"
+                } else {
+                    errorMessage = "Error: \(error.localizedDescription)"
+                }
             }
             isLoading = false
         }
