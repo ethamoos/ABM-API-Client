@@ -66,8 +66,7 @@ class ABMViewModel: ObservableObject {
             errorMessage = "Generate JWT first"
             return
         }
-//        DEBUG
-//        print("Assertion is: \(assertion)")
+        print("Assertion is: \(assertion)")
         isLoading = true
         errorMessage = nil
         statusMessage = nil
@@ -77,13 +76,19 @@ class ABMViewModel: ObservableObject {
                     clientAssertion: assertion,
                     clientId: clientId
                 )
-                let fetchedDevices = try await apiService.fetchDevices(accessToken: token)
-                devices = fetchedDevices
-                statusMessage = "Fetched \(devices.count) devices"
-                if devices.isEmpty {
-                    // Print and show raw response for debugging
-                    print("No devices returned from API. Check device assignment and permissions.")
-                    errorMessage = "No devices returned. Please check device assignment, permissions, and API response."
+                do {
+                    let fetchedDevices = try await apiService.fetchDevices(accessToken: token)
+                    devices = fetchedDevices
+                    statusMessage = "Fetched \(devices.count) devices"
+                    if devices.isEmpty {
+                        print("No devices returned from API. Check device assignment and permissions.")
+                        errorMessage = "No devices returned. Please check device assignment, permissions, and API response."
+                    }
+                } catch let partialError as PartialFetchError {
+                    devices = partialError.partialDevices
+                    errorMessage = "Connection lost or error occurred. Displaying \(devices.count) devices fetched before the error. Error: \(partialError.underlyingError.localizedDescription)"
+                } catch {
+                    errorMessage = "API Error: \(error.localizedDescription)"
                 }
             } catch {
                 errorMessage = "API Error: \(error.localizedDescription)"

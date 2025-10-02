@@ -8,6 +8,12 @@
 
 import Foundation
 
+// Error type for partial fetch
+struct PartialFetchError: Error {
+    let partialDevices: [OrgDevice]
+    let underlyingError: Error
+}
+
 enum AppleAPIEnvironment: String, CaseIterable, Identifiable {
     case business = "https://api-business.apple.com"
     case school = "https://api-school.apple.com"
@@ -123,7 +129,12 @@ class APIService {
                         continue
                     } else {
                         print("fetchDevices: failed after \(maxRetries+1) attempts: \(error.localizedDescription)")
-                        throw error
+                        // If we have partial data, throw PartialFetchError
+                        if !allDevices.isEmpty {
+                            throw PartialFetchError(partialDevices: allDevices, underlyingError: error)
+                        } else {
+                            throw error
+                        }
                     }
                 }
             }
