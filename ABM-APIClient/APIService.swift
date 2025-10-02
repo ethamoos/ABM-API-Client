@@ -82,42 +82,56 @@ class APIService {
     }
     
     // Fetch devices
-    func fetchDevices(accessToken: String) async throws -> [OrgDevice] {
+    func fetchDevices(accessToken: String, pageDelay: UInt64 = 1_000_000_000, maxRetries: Int = 3) async throws -> [OrgDevice] {
         var allDevices: [OrgDevice] = []
         var nextURL: String? = "\(baseURL)/v1/orgDevices"
         
         while let urlString = nextURL {
             guard let url = URL(string: urlString) else { break }
-            
             var request = URLRequest(url: url)
             request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
             request.setValue("application/json", forHTTPHeaderField: "Accept")
             
-            let (data, response) = try await URLSession.shared.data(for: request)
-            
-            // Debug response
-            if let httpResponse = response as? HTTPURLResponse {
-                print("Status Code: \(httpResponse.statusCode)")
-                print("Headers: \(httpResponse.allHeaderFields)")
-                if httpResponse.statusCode != 200 {
-                    print("Response: \(String(data: data, encoding: .utf8) ?? "No data")")
-                    throw NSError(domain: "API", code: httpResponse.statusCode,
-                                userInfo: [NSLocalizedDescriptionKey: "API returned status \(httpResponse.statusCode)"])
+            var lastError: Error?
+            for attempt in 0...maxRetries {
+                do {
+                    let (data, response) = try await URLSession.shared.data(for: request)
+                    if let httpResponse = response as? HTTPURLResponse {
+                        print("Status Code: \(httpResponse.statusCode)")
+                        if httpResponse.statusCode != 200 {
+                            print("Response: \(String(data: data, encoding: .utf8) ?? "No data")")
+                            throw NSError(domain: "API", code: httpResponse.statusCode,
+                                        userInfo: [NSLocalizedDescriptionKey: "API returned status \(httpResponse.statusCode)"])
+                        }
+                    }
+                    let deviceResponse = try JSONDecoder().decode(DevicesResponse.self, from: data)
+                    allDevices.append(contentsOf: deviceResponse.data)
+                    if let next = deviceResponse.links?.next, next.hasPrefix("http") {
+                        nextURL = next
+                    } else if let next = deviceResponse.links?.next {
+                        nextURL = "\(baseURL)\(next)"
+                    } else {
+                        nextURL = nil
+                    }
+                    break // Success, break retry loop
+                } catch {
+                    lastError = error
+                    if attempt < maxRetries {
+                        let backoff = UInt64(pow(2.0, Double(attempt))) * 500_000_000 // 0.5s, 1s, 2s, ...
+                        print("fetchDevices: attempt \(attempt+1) failed, retrying in \(Double(backoff)/1_000_000_000)s: \(error.localizedDescription)")
+                        try await Task.sleep(nanoseconds: backoff)
+                        continue
+                    } else {
+                        print("fetchDevices: failed after \(maxRetries+1) attempts: \(error.localizedDescription)")
+                        throw error
+                    }
                 }
             }
-            
-            let deviceResponse = try JSONDecoder().decode(DevicesResponse.self, from: data)
-            
-            allDevices.append(contentsOf: deviceResponse.data)
-            if let next = deviceResponse.links?.next, next.hasPrefix("http") {
-                nextURL = next
-            } else if let next = deviceResponse.links?.next {
-                nextURL = "\(baseURL)\(next)"
-            } else {
-                nextURL = nil
+            // Add delay between paginated requests to avoid server saturation
+            if nextURL != nil {
+                try await Task.sleep(nanoseconds: pageDelay)
             }
         }
-        
         return allDevices
     }
     
@@ -160,6 +174,14 @@ class APIService {
         
         let (data, _) = try await URLSession.shared.data(for: request)
         let response = try JSONDecoder().decode(RelationshipResponse.self, from: data)
+        
+        if let httpResponse = response as? HTTPURLResponse {
+            print("Get Devices Status Code: \(httpResponse.statusCode)")
+            if httpResponse.statusCode != 200 {
+                print("Get Devices Response: \(String(data: data, encoding: .utf8) ?? "No data")")
+            }
+        }
+
         return response.data.map { $0.id }
     }
     

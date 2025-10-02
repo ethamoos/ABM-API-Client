@@ -18,7 +18,9 @@ struct ContentView: View {
         if url.startAccessingSecurityScopedResource() {
             defer { url.stopAccessingSecurityScopedResource() }
             do {
-                viewModel.privateKey = try String(contentsOf: url, encoding: .utf8)
+                let key = try String(contentsOf: url, encoding: .utf8)
+                viewModel.privateKey = key
+                _ = KeychainHelper.savePrivateKey(key)
             } catch {
                 viewModel.errorMessage = "Failed to read key: \(error.localizedDescription)"
             }
@@ -217,6 +219,9 @@ struct ContentView: View {
             .frame(minWidth: 800, maxWidth: .infinity, minHeight: 600, maxHeight: .infinity)
         }
         .onAppear {
+            if let savedKey = KeychainHelper.loadPrivateKey() {
+                viewModel.privateKey = savedKey
+            }
             viewModel.loadCredentials()
         }
         .fileImporter(
@@ -256,79 +261,81 @@ struct ContentView: View {
         }
         
         var body: some View {
-            VStack(spacing: 0) {
-                // Header
-                HStack(spacing: 16) {
-                    Text("Devices")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
-                    
-                    Spacer()
-                    
-                    // Search bar
-                    HStack {
-                        Image(systemName: "magnifyingglass")
-                            .foregroundColor(.secondary)
-                        TextField("Search devices...", text: $searchText)
-                            .textFieldStyle(.plain)
+            ZStack {
+                VStack(spacing: 0) {
+                    // Header
+                    HStack(spacing: 16) {
+                        Text("Devices")
+                            .font(.largeTitle)
+                            .fontWeight(.bold)
+                        Spacer()
+                        // Search bar
+                        HStack {
+                            Image(systemName: "magnifyingglass")
+                                .foregroundColor(.secondary)
+                            TextField("Search devices...", text: $searchText)
+                                .textFieldStyle(.plain)
+                        }
+                        .padding(8)
+                        .background(Color.gray.opacity(0.1))
+                        .cornerRadius(8)
+                        .frame(maxWidth: 300)
+                        // Action buttons
+                        HStack(spacing: 12) {
+                            Button(action: { showingExporter = true }) {
+                                Label("Export", systemImage: "square.and.arrow.up")
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(viewModel.devices.isEmpty)
+                            Button(action: { viewModel.fetchDevices() }) {
+                                Label("Refresh", systemImage: "arrow.clockwise")
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
                     }
-                    .padding(8)
-                    .background(Color.gray.opacity(0.1))
-                    .cornerRadius(8)
-                    .frame(maxWidth: 300)
-                    
-                    // Action buttons
-                    HStack(spacing: 12) {
-                        Button(action: { showingExporter = true }) {
-                            Label("Export", systemImage: "square.and.arrow.up")
+                    .padding()
+                    .background(Color(NSColor.windowBackgroundColor))
+                    Divider()
+                    // Device list
+                    if viewModel.devices.isEmpty {
+                        Spacer()
+                        ContentUnavailableView(
+                            "No Devices",
+                            systemImage: "laptopcomputer",
+                            description: Text("Click 'Connect to ABM' in the sidebar to load devices")
+                        )
+                        Spacer()
+                    } else if filteredDevices.isEmpty {
+                        Spacer()
+                        ContentUnavailableView.search(text: searchText)
+                        Spacer()
+                    } else {
+                        List(filteredDevices, selection: $selectedDevice) { device in
+                            DeviceRow(device: device)
+                                .onTapGesture {
+                                    selectedDevice = device
+                                    showingDetails = true
+                                }
                         }
-                        .buttonStyle(.bordered)
-                        .disabled(viewModel.devices.isEmpty)
-                        
-                        Button(action: { viewModel.fetchDevices() }) {
-                            Label("Refresh", systemImage: "arrow.clockwise")
+                        .listStyle(.inset(alternatesRowBackgrounds: true))
+                        // Status bar
+                        HStack {
+                            Text("\(filteredDevices.count) devices")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Spacer()
                         }
-                        .buttonStyle(.borderedProminent)
+                        .padding(.horizontal)
+                        .padding(.vertical, 8)
+                        .background(Color(NSColor.controlBackgroundColor))
                     }
                 }
-                .padding()
-                .background(Color(NSColor.windowBackgroundColor))
-                
-                Divider()
-                
-                // Device list
-                if viewModel.devices.isEmpty {
-                    Spacer()
-                    ContentUnavailableView(
-                        "No Devices",
-                        systemImage: "laptopcomputer",
-                        description: Text("Click 'Connect to ABM' in the sidebar to load devices")
-                    )
-                    Spacer()
-                } else if filteredDevices.isEmpty {
-                    Spacer()
-                    ContentUnavailableView.search(text: searchText)
-                    Spacer()
-                } else {
-                    List(filteredDevices, selection: $selectedDevice) { device in
-                        DeviceRow(device: device)
-                            .onTapGesture {
-                                selectedDevice = device
-                                showingDetails = true
-                            }
-                    }
-                    .listStyle(.inset(alternatesRowBackgrounds: true))
-                    
-                    // Status bar
-                    HStack {
-                        Text("\(filteredDevices.count) devices")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Spacer()
-                    }
-                    .padding(.horizontal)
-                    .padding(.vertical, 8)
-                    .background(Color(NSColor.controlBackgroundColor))
+                // Overlay ProgressView when loading
+                if viewModel.isLoading {
+                    Color.black.opacity(0.1).ignoresSafeArea()
+                    ProgressView("Loading devices...")
+                        .progressViewStyle(CircularProgressViewStyle())
+                        .scaleEffect(1.5)
                 }
             }
             .sheet(isPresented: $showingDetails) {

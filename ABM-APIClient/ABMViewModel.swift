@@ -61,27 +61,30 @@ class ABMViewModel: ObservableObject {
     
     // Fetch devices
     func fetchDevices() {
-        print("Running fetchDevices")
+        print("Running fetchDevices() in ABMViewModel")
         guard let assertion = clientAssertion else {
             errorMessage = "Generate JWT first"
             return
         }
-        
-        print("Assertion is: \(assertion)")
-        
+//        DEBUG
+//        print("Assertion is: \(assertion)")
         isLoading = true
         errorMessage = nil
         statusMessage = nil
-        
         Task {
             do {
                 let token = try await apiService.getAccessToken(
                     clientAssertion: assertion,
                     clientId: clientId
                 )
-                
-                devices = try await apiService.fetchDevices(accessToken: token)
+                let fetchedDevices = try await apiService.fetchDevices(accessToken: token)
+                devices = fetchedDevices
                 statusMessage = "Fetched \(devices.count) devices"
+                if devices.isEmpty {
+                    // Print and show raw response for debugging
+                    print("No devices returned from API. Check device assignment and permissions.")
+                    errorMessage = "No devices returned. Please check device assignment, permissions, and API response."
+                }
             } catch {
                 errorMessage = "API Error: \(error.localizedDescription)"
             }
