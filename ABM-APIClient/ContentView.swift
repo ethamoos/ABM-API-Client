@@ -167,9 +167,18 @@ struct ContentView: View {
                                     HStack(alignment: .top) {
                                         Image(systemName: "exclamationmark.triangle")
                                             .foregroundColor(.red)
-                                        Text(error)
-                                            .font(.caption)
-                                            .fixedSize(horizontal: false, vertical: true)
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(error)
+                                                .font(.caption)
+                                                .fixedSize(horizontal: false, vertical: true)
+                                            if viewModel.canRetryPartialFetch {
+                                                Button(action: { viewModel.retryFetchDevices() }) {
+                                                    Label("Retry from failure point", systemImage: "arrow.clockwise")
+                                                }
+                                                .buttonStyle(.borderedProminent)
+                                                .font(.caption)
+                                            }
+                                        }
                                     }
                                 }
                             }

@@ -31,6 +31,11 @@ class ABMViewModel: ObservableObject {
     internal var apiService: APIService
     internal var clientAssertion: String?
     
+    // State for partial fetch retry
+    var partialDevices: [OrgDevice] = []
+    var partialNextURL: String? = nil
+    var canRetryPartialFetch: Bool { partialNextURL != nil && !partialDevices.isEmpty }
+    
     init() {
         self.apiService = APIService(environment: .business)
     }
@@ -66,10 +71,11 @@ class ABMViewModel: ObservableObject {
             errorMessage = "Generate JWT first"
             return
         }
-        print("Assertion is: \(assertion)")
         isLoading = true
         errorMessage = nil
         statusMessage = nil
+        partialDevices = []
+        partialNextURL = nil
         Task {
             do {
                 let token = try await apiService.getAccessToken(
@@ -81,15 +87,50 @@ class ABMViewModel: ObservableObject {
                     devices = fetchedDevices
                     statusMessage = "Fetched \(devices.count) devices"
                     if devices.isEmpty {
-                        print("No devices returned from API. Check device assignment and permissions.")
                         errorMessage = "No devices returned. Please check device assignment, permissions, and API response."
                     }
                 } catch let partialError as PartialFetchError {
                     devices = partialError.partialDevices
-                    errorMessage = "Connection lost or error occurred. Displaying \(devices.count) devices fetched before the error. Error: \(partialError.underlyingError.localizedDescription)"
+                    partialDevices = partialError.partialDevices
+                    partialNextURL = partialError.nextURL
+                    errorMessage = "Connection lost or error occurred. Displaying \(devices.count) devices fetched before the error. You can retry from the failure point. Error: \(partialError.underlyingError.localizedDescription)"
                 } catch {
                     errorMessage = "API Error: \(error.localizedDescription)"
                 }
+            } catch {
+                errorMessage = "API Error: \(error.localizedDescription)"
+            }
+            isLoading = false
+        }
+    }
+
+    // Retry from failure point, deduplicating devices
+    func retryFetchDevices() {
+        guard let assertion = clientAssertion, let nextURL = partialNextURL else { return }
+        isLoading = true
+        errorMessage = nil
+        statusMessage = nil
+        Task {
+            do {
+                let token = try await apiService.getAccessToken(
+                    clientAssertion: assertion,
+                    clientId: clientId
+                )
+                let newDevices = try await apiService.fetchDevices(accessToken: token, resumeURL: nextURL, existingDevices: partialDevices)
+                // Deduplicate by device ID
+                let deduped = Dictionary(grouping: newDevices, by: { $0.id }).compactMap { $0.value.first }
+                devices = deduped
+                statusMessage = "Fetched \(devices.count) devices (after retry)"
+                partialDevices = []
+                partialNextURL = nil
+            } catch let partialError as PartialFetchError {
+                // Merge and deduplicate again
+                let merged = partialError.partialDevices + partialDevices
+                let deduped = Dictionary(grouping: merged, by: { $0.id }).compactMap { $0.value.first }
+                devices = deduped
+                partialDevices = deduped
+                partialNextURL = partialError.nextURL
+                errorMessage = "Connection lost again. Displaying \(devices.count) devices fetched so far. You can retry again. Error: \(partialError.underlyingError.localizedDescription)"
             } catch {
                 errorMessage = "API Error: \(error.localizedDescription)"
             }

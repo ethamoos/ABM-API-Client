@@ -12,6 +12,7 @@ import Foundation
 struct PartialFetchError: Error {
     let partialDevices: [OrgDevice]
     let underlyingError: Error
+    let nextURL: String?
 }
 
 enum AppleAPIEnvironment: String, CaseIterable, Identifiable {
@@ -88,9 +89,9 @@ class APIService {
     }
     
     // Fetch devices
-    func fetchDevices(accessToken: String, pageDelay: UInt64 = 1_000_000_000, maxRetries: Int = 3) async throws -> [OrgDevice] {
-        var allDevices: [OrgDevice] = []
-        var nextURL: String? = "\(baseURL)/v1/orgDevices"
+    func fetchDevices(accessToken: String, pageDelay: UInt64 = 1_000_000_000, maxRetries: Int = 3, resumeURL: String? = nil, existingDevices: [OrgDevice] = []) async throws -> [OrgDevice] {
+        var allDevices: [OrgDevice] = existingDevices
+        var nextURL: String? = resumeURL ?? "\(baseURL)/v1/orgDevices"
         
         while let urlString = nextURL {
             guard let url = URL(string: urlString) else { break }
@@ -131,7 +132,7 @@ class APIService {
                         print("fetchDevices: failed after \(maxRetries+1) attempts: \(error.localizedDescription)")
                         // If we have partial data, throw PartialFetchError
                         if !allDevices.isEmpty {
-                            throw PartialFetchError(partialDevices: allDevices, underlyingError: error)
+                            throw PartialFetchError(partialDevices: allDevices, underlyingError: error, nextURL: nextURL)
                         } else {
                             throw error
                         }
